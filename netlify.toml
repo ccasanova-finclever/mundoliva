@@ -6,3 +6,12 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+[build.environment]
+  # La llave de Firebase (AIza...) en index.html es PUBLICA por diseño
+  # (asi funcionan las apps web de Firebase; la seguridad esta en las
+  # reglas de Firestore). El escaner de Netlify la confunde con un
+  # secreto filtrado y bloquea el deploy — se desactiva solo la
+  # deteccion automatica. La llave de Wix sigue protegida como
+  # variable de entorno (nunca aparece en los archivos del sitio).
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
