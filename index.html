@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mundoliva · Inventario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --brand:    #cccd2a;
+  --brand-dk: #a8a920;
+  --header:   #1a1a1a;
+  --ink:      #111111;
+  --white:    #ffffff;
+  --g50:      #f9f9f9;
+  --g100:     #f3f3f3;
+  --g200:     #e6e6e6;
+  --g300:     #d0d0d0;
+  --g400:     #9e9e9e;
+  --g600:     #555555;
+  --g700:     #333333;
+  --g800:     #1a1a1a;
+  --red:      #cc2222;
+  --amber:    #c47a00;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--g50); color: var(--g800); min-height: 100vh; }
+
+/* ── LOGIN ── */
+#login-screen {
+  min-height: 100vh;
+  background: var(--header);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+#login-screen.hidden { display: none; }
+.login-card {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 48px 40px 40px;
+  width: 100%;
+  max-width: 400px;
+  border-top: 4px solid var(--brand);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.login-logo { font-family: 'Playfair Display', serif; font-size: 1.9rem; color: var(--ink); margin-bottom: 4px; }
+.login-sub  { font-size: 0.8rem; color: var(--g400); margin-bottom: 36px; }
+.login-label {
+  display: block; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--g600); margin-bottom: 6px;
+}
+.login-input {
+  width: 100%; padding: 11px 14px;
+  border: 1px solid var(--g200); border-radius: 7px;
+  font-size: 0.9rem; font-family: 'DM Sans', sans-serif;
+  color: var(--g800); background: var(--white); margin-bottom: 18px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.login-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(204,205,42,0.2); }
+.login-btn {
+  width: 100%; padding: 12px; background: var(--ink); color: var(--white);
+  border: none; border-radius: 7px; font-size: 0.9rem; font-weight: 600;
+  font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.14s;
+}
+.login-btn:hover { background: var(--g700); }
+.login-error { font-size: 0.8rem; color: var(--red); margin-top: 14px; text-align: center; min-height: 18px; }
+
+/* ── APP ── */
+#app { display: none; }
+#app.visible { display: block; }
+
+/* HEADER */
+header {
+  background: var(--header); padding: 0 36px; height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 3px solid var(--brand);
+}
+.logo { font-family: 'Playfair Display', serif; color: var(--white); font-size: 1.2rem; }
+.logo span { font-family: 'DM Sans', sans-serif; font-size: 0.77rem; font-weight: 300; color: rgba(255,255,255,0.4); margin-left: 12px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.user-pill { font-size: 0.71rem; color: rgba(255,255,255,0.45); padding: 3px 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; }
+.sync-pill { font-size: 0.71rem; font-weight: 500; padding: 3px 10px; border-radius: 20px; transition: all 0.3s; }
+.sync-pill.ok      { background: rgba(204,205,42,0.18); color: var(--brand); }
+.sync-pill.saving  { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); }
+.sync-pill.offline { background: rgba(204,34,34,0.18); color: #ff8080; }
+.hbtn { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.16); border-radius: 6px; padding: 6px 14px; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.14s; }
+.hbtn:hover { background: rgba(255,255,255,0.15); }
+.hbtn.out { color: rgba(255,255,255,0.45); border-color: rgba(255,255,255,0.08); }
+
+/* MAIN */
+main { max-width: 1440px; margin: 0 auto; padding: 28px 36px; }
+
+/* KPIS */
+.kpis { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 26px; }
+.kpi { background: var(--white); border: 1px solid var(--g200); border-top: 3px solid var(--brand); border-radius: 8px; padding: 16px 18px; }
+.kpi-label { font-size: 0.67rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--g400); margin-bottom: 8px; }
+.kpi-val { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--ink); line-height: 1; }
+.kpi-sub { font-size: 0.69rem; color: var(--g400); margin-top: 4px; }
+
+/* TOOLBAR */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.page-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--ink); flex: 1; }
+.tabs { display: flex; gap: 2px; background: var(--g100); border: 1px solid var(--g200); border-radius: 7px; padding: 3px; }
+.tab { padding: 6px 13px; border: none; border-radius: 5px; font-size: 0.79rem; font-weight: 500; font-family: 'DM Sans', sans-serif; background: transparent; color: var(--g600); cursor: pointer; transition: all 0.12s; }
+.tab.active { background: var(--ink); color: var(--white); }
+.search { padding: 7px 12px; border: 1px solid var(--g200); border-radius: 7px; font-size: 0.82rem; font-family: 'DM Sans', sans-serif; width: 175px; color: var(--g800); background: var(--white); }
+.search:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(204,205,42,0.18); }
+
+/* TABLE */
+.twrap { background: var(--white); border: 1px solid var(--g200); border-radius: 10px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+thead { background: var(--header); }
+thead th { color: rgba(255,255,255,0.65); font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 11px 10px; text-align: left; white-space: nowrap; }
+thead th.r { text-align: right; } thead th.c { text-align: center; }
+thead th.editable { color: var(--brand); }
+tbody tr { border-bottom: 1px solid var(--g100); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #f5f5f0; }
+tbody tr.add-row { background: #fafaf5; border-top: 2px dashed var(--brand); }
+tbody tr.add-row:hover { background: #f5f5ec; }
+td { padding: 3px 10px; font-size: 0.84rem; vertical-align: middle; }
+td.r { text-align: right; } td.c { text-align: center; }
+
+.pname { font-weight: 600; color: var(--g800); white-space: nowrap; }
+.psku  { font-size: 0.69rem; color: var(--g400); font-family: monospace; margin-top: 1px; }
+.brand { display: inline-block; background: var(--g100); color: var(--g700); border: 1px solid var(--g200); border-radius: 4px; padding: 2px 7px; font-size: 0.67rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.dot.in { background: var(--ink); } .dot.low { background: var(--amber); } .dot.out { background: var(--red); }
+.tot { display: inline-block; background: var(--g100); color: var(--ink); border: 1px solid var(--g200); border-radius: 5px; padding: 2px 9px; font-weight: 700; font-size: 0.86rem; min-width: 30px; text-align: center; }
+.tot.zero { background: #fdf0f0; color: var(--red); border-color: #f5cccc; }
+.mg { font-weight: 600; color: var(--g600); }
+.mg.good { color: var(--ink); font-weight: 700; } .mg.mid { color: var(--amber); }
+.vm { font-weight: 600; color: var(--ink); }
+.vc { color: var(--g600); }
+
+/* INLINE INPUTS */
+.cel { width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; font-family: 'DM Sans', sans-serif; font-size: 0.84rem; background: transparent; color: var(--g800); transition: border-color 0.1s, background 0.1s, box-shadow 0.1s; -moz-appearance: textfield; }
+.cel::-webkit-inner-spin-button, .cel::-webkit-outer-spin-button { -webkit-appearance: none; }
+.cel:hover { border-color: var(--g200); background: var(--g50); }
+.cel:focus { outline: none; border-color: var(--brand); background: var(--white); box-shadow: 0 0 0 2px rgba(204,205,42,0.22); }
+.cel.r { text-align: right; } .cel.c { text-align: center; }
+.cel-stock { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+.cel-cost  { color: var(--g600); }
+.cel-price { font-weight: 600; color: var(--g800); }
+.cel-text  { color: var(--g700); }
+.add-row .cel { background: rgba(204,205,42,0.05); border-color: rgba(204,205,42,0.25); }
+.add-row .cel:focus { background: var(--white); border-color: var(--brand); }
+
+@keyframes flashSave { 0%{background:#f8f9d0} 100%{background:transparent} }
+.saved { animation: flashSave 0.65s ease-out; }
+
+.del-btn { background: transparent; border: none; color: var(--g300); cursor: pointer; font-size: 0.88rem; padding: 4px 6px; border-radius: 4px; transition: all 0.12s; }
+.del-btn:hover { background: #fdf0f0; color: var(--red); }
+.add-btn { background: var(--brand); color: var(--ink); border: none; border-radius: 5px; padding: 6px 12px; font-size: 0.77rem; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.12s; white-space: nowrap; }
+.add-btn:hover { background: var(--brand-dk); }
+
+#toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--white); padding: 9px 20px; border-radius: 7px; font-size: 0.82rem; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 999; white-space: nowrap; border-left: 3px solid var(--brand); }
+#toast.show { opacity: 1; }
+
+footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22px; margin-top: 32px; border-top: 1px solid var(--g200); }
+@media (max-width: 960px) { .kpis { grid-template-columns: repeat(2,1fr); } main { padding: 16px; } }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- ════ LOGIN ════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Mundoliva</div>
+    <div class="login-sub">Sistema de Inventario &middot; Acceso restringido</div>
+    <label class="login-label">Correo electronico</label>
+    <input type="email" id="l-email" class="login-input" placeholder="correo@ejemplo.com" autocomplete="email">
+    <label class="login-label">Contrasena</label>
+    <input type="password" id="l-pass" class="login-input" placeholder="••••••••" autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="l-err"></div>
+  </div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app">
+  <header>
+    <div class="logo">Mundoliva <span>Sistema de Inventario</span></div>
+    <div class="header-right">
+      <span class="user-pill" id="user-pill"></span>
+      <span class="sync-pill saving" id="sync-pill">Conectando...</span>
+      <button class="hbtn" onclick="exportCSV()">Exportar CSV</button>
+      <button class="hbtn" onclick="resetStocks()">Resetear Stocks</button>
+      <button class="hbtn out" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">Unidades en Stock</div><div class="kpi-val" id="ku">0</div><div class="kpi-sub">bidones de 5 litros</div></div>
+      <div class="kpi"><div class="kpi-label">Inversion a Costo</div><div class="kpi-val" id="kc">$0</div><div class="kpi-sub">lo que pagaste</div></div>
+      <div class="kpi"><div class="kpi-label">Valor a Precio Venta</div><div class="kpi-val" id="kp">$0</div><div class="kpi-sub">si vendes todo</div></div>
+      <div class="kpi"><div class="kpi-label">Margen Esperado</div><div class="kpi-val" id="km">$0</div><div class="kpi-sub">utilidad potencial</div></div>
+      <div class="kpi"><div class="kpi-label">Margen Promedio</div><div class="kpi-val" id="kpct">0%</div><div class="kpi-sub">sobre precio de venta</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="page-title">Inventario en formato de 5 litros</div>
+      <div class="tabs">
+        <button class="tab active" onclick="setF('all',this)">Todas las bodegas</button>
+        <button class="tab" onclick="setF('geminis',this)">Geminis 366</button>
+        <button class="tab" onclick="setF('hamburgo',this)">Hamburgo 1620</button>
+      </div>
+      <input class="search" type="text" placeholder="Buscar producto..." oninput="setQ(this.value)">
+    </div>
+    <div class="twrap">
+      <table>
+        <thead><tr>
+          <th>Producto</th><th>SKU</th><th>Marca</th>
+          <th class="c editable">Geminis 366</th>
+          <th class="c editable">Hamburgo 1620</th>
+          <th class="c">Total</th>
+          <th class="r editable">Costo Unit.</th>
+          <th class="r editable">Precio Venta</th>
+          <th class="r">Margen %</th>
+          <th class="r">Valor a Costo</th>
+          <th class="r">Margen si Vende Todo</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+  <footer>Mundoliva &middot; Inventario Interno &middot; Guardado local + Firebase</footer>
+</div>
+
+<script>
+/* ════════════════════════════════
+   USUARIOS AUTORIZADOS
+════════════════════════════════ */
+var USERS = {
+  "ventas@mundoliva.cl":    "mundoliva",
+  "nadia.vera.dlf@gmail.com": "mundoliva"
+};
+
+/* ════════════════════════════════
+   LOGIN — sin Firebase Auth
+════════════════════════════════ */
+function doLogin() {
+  var email = document.getElementById("l-email").value.trim().toLowerCase();
+  var pass  = document.getElementById("l-pass").value;
+  var err   = document.getElementById("l-err");
+
+  err.textContent = "";
+  if (!email) { err.textContent = "Ingresa tu correo."; return; }
+  if (!pass)  { err.textContent = "Ingresa tu contrasena."; return; }
+
+  if (USERS[email] && USERS[email] === pass) {
+    sessionStorage.setItem("ml_user", email);
+    showApp(email);
+  } else {
+    err.textContent = "Correo o contrasena incorrectos.";
+    document.getElementById("l-pass").value = "";
+    document.getElementById("l-pass").focus();
+  }
+}
+
+function doLogout() {
+  stopListener();           // cancelar listener Firestore
+  inv = {};                 // limpiar datos en memoria
+  sessionStorage.removeItem("ml_user");
+  document.getElementById("app").style.display = "none";
+  document.getElementById("login-screen").classList.remove("hidden");
+  document.getElementById("l-pass").value = "";
+  document.getElementById("l-err").textContent = "";
+}
+
+function showApp(email) {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app").style.display = "block";
+  document.getElementById("user-pill").textContent = email;
+  bootApp();
+}
+
+/* Enter key on inputs */
+document.getElementById("l-pass").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
+document.getElementById("l-email").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("l-pass").focus(); });
+
+/* Check session on load */
+window.addEventListener("load", function() {
+  var saved = sessionStorage.getItem("ml_user");
+  if (saved && USERS[saved]) showApp(saved);
+});
+
+/* ════════════════════════════════
+   FIREBASE — solo Firestore
+════════════════════════════════ */
+var FB_CFG = {
+  apiKey:            "AIzaSyA2WFgZRMN4lTuIQstKWQnNWzIPNkhkL9c",
+  authDomain:        "mundoliva-6def2.firebaseapp.com",
+  projectId:         "mundoliva-6def2",
+  storageBucket:     "mundoliva-6def2.firebasestorage.app",
+  messagingSenderId: "831529266972",
+  appId:             "1:831529266972:web:d40f78327c2f15001c14d9"
+};
+firebase.initializeApp(FB_CFG);
+var db      = firebase.firestore();
+var COL     = "inventario";
+var unsub   = null; // listener activo
+
+/* ════════════════════════════════
+   CATALOG
+════════════════════════════════ */
+var BASE = [
+  {sku:"HDO-AO-BLD-5L",    name:"Huerto de los Olivos Blend", brand:"Huerto de los Olivos",price:52990,cost:38000},
+  {sku:"ALB-AO-ARB-5L",    name:"Albero Arbequina",           brand:"Albero",              price:48990,cost:44000},
+  {sku:"ALB-AO-BLD-5L",    name:"Albero Blend",               brand:"Albero",              price:48990,cost:46500},
+  {sku:"ALB-AO-FRA-5L",    name:"Albero Frantoio",            brand:"Albero",              price:48990,cost:44000},
+  {sku:"ALB-AO-COR-5L",    name:"Albero Coratina",            brand:"Albero",              price:53990,cost:44000},
+  {sku:"CPT-AO-ARB-5L",    name:"Cepas Patagua Arbequina",    brand:"Cepas de la Patagua", price:48000,cost:39270},
+  {sku:"CPT-AO-PIC-5L",    name:"Cepas Patagua Picual",       brand:"Cepas de la Patagua", price:46990,cost:28822},
+  {sku:"CPT-AO-FRA-5L",    name:"Cepas Patagua Frantoio",     brand:"Cepas de la Patagua", price:46990,cost:44000},
+  {sku:"STE-AO-BLD-5L",    name:"Santa Elvira Blend",         brand:"Santa Elvira",        price:62990,cost:28908},
+  {sku:"DEL-AO-BLD-BIB-5L",name:"Deleyda Prime BIB",          brand:"Deleyda",             price:57990,cost:47500}
+];
+
+var inv = {};
+var F = "all", Q = "";
+
+/* ════════════════════════════════
+   BOOT — se llama en cada login.
+   Cancela listener previo primero.
+════════════════════════════════ */
+function bootApp() {
+  inv = {}; // limpiar estado anterior
+  // Mostrar catalogo base en ceros mientras carga
+  seedFromBase();
+  renderTable();
+  renderKPIs();
+  setSyncPill("saving", "Conectando...");
+  startListener();
+}
+
+/* Cancelar listener al salir */
+function stopListener() {
+  if (unsub) { unsub(); unsub = null; }
+}
+
+/* ════════════════════════════════
+   FIRESTORE onSnapshot
+   Fuente de verdad compartida.
+   Se actualiza en tiempo real en
+   todos los dispositivos.
+════════════════════════════════ */
+function startListener() {
+  stopListener(); // cancelar cualquier listener anterior
+
+  unsub = db.collection(COL).onSnapshot(
+    function(snap) {
+      if (snap.empty) {
+        // Primera vez: subir catalogo base
+        seedFromBase();
+        uploadAllToFirestore();
+      } else {
+        // Cargar datos de Firestore — REEMPLAZAN todo
+        inv = {};
+        snap.forEach(function(doc) {
+          inv[doc.id] = doc.data();
+        });
+        // Agregar productos del catalogo que falten
+        seedFromBase();
+        lsSave();
+      }
+      renderTable();
+      renderKPIs();
+      setSyncPill("ok", "Sincronizado");
+    },
+    function(err) {
+      console.error("Firestore listener error:", err.code, err.message);
+      if (err.code === "permission-denied") {
+        setSyncPill("offline", "REGLAS FIRESTORE VENCIDAS");
+        alert(
+          "ERROR: Las reglas de seguridad de Firestore vencieron.\n\n" +
+          "Ve a console.firebase.google.com → Firestore Database → Reglas\n" +
+          "y reemplaza el contenido con:\n\n" +
+          "rules_version = '2';\n" +
+          "service cloud.firestore {\n" +
+          "  match /databases/{database}/documents {\n" +
+          "    match /{document=**} {\n" +
+          "      allow read, write: if true;\n" +
+          "    }\n" +
+          "  }\n" +
+          "}"
+        );
+      } else {
+        // Fallback a localStorage
+        var raw = localStorage.getItem("mundoliva_v5");
+        if (raw) {
+          inv = JSON.parse(raw);
+          seedFromBase();
+          renderTable();
+          renderKPIs();
+          setSyncPill("offline", "Sin conexion — datos locales");
+        } else {
+          setSyncPill("offline", "Sin conexion");
+        }
+      }
+    }
+  );
+}
+
+function seedFromBase() {
+  for (var i = 0; i < BASE.length; i++) {
+    var b = BASE[i];
+    if (!inv[b.sku]) {
+      inv[b.sku] = { name:b.name, brand:b.brand, base:true, g:0, h:0, cost:b.cost, price:b.price };
+    }
+  }
+}
+
+function uploadAllToFirestore() {
+  var batch = db.batch();
+  for (var sku in inv) batch.set(db.collection(COL).doc(sku), inv[sku]);
+  batch.commit().catch(function(e){ console.warn("uploadAll:", e.code); });
+}
+
+function lsSave() { localStorage.setItem("mundoliva_v5", JSON.stringify(inv)); }
+
+/* Guardar un SKU directamente en Firestore */
+function save(sku) {
+  lsSave();
+  if (!sku || !inv[sku]) return;
+  setSyncPill("saving", "Guardando...");
+  db.collection(COL).doc(sku).set(inv[sku])
+    .then(function() { setSyncPill("ok", "Guardado"); })
+    .catch(function(e) {
+      console.error("save error:", e.code, e.message);
+      if (e.code === "permission-denied") {
+        setSyncPill("offline", "REGLAS FIRESTORE VENCIDAS — ver consola");
+      } else {
+        setSyncPill("offline", "Error al guardar");
+      }
+    });
+}
+
+function fbDel(sku) {
+  db.collection(COL).doc(sku).delete().catch(function(e){ console.warn("delete:", e.code); });
+}
+
+/* ════════════════════════════════
+   FORMAT
+════════════════════════════════ */
+function clp(n){ return Math.round(n).toLocaleString("es-CL"); }
+function fmt(n){
+  n=Math.round(n);
+  if(n>=1000000) return "$"+(n/1000000).toFixed(1).replace(".",",")+"M";
+  if(n>=1000)    return "$"+Math.round(n/1000)+"K";
+  return "$"+clp(n);
+}
+function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* ════════════════════════════════
+   KPIs
+════════════════════════════════ */
+function renderKPIs(){
+  var u=0,c=0,p=0,wN=0,wD=0;
+  for(var sku in inv){
+    var v=inv[sku],n=(v.g||0)+(v.h||0),cost=v.cost||0,price=v.price||0;
+    u+=n;c+=n*cost;p+=n*price;
+    if(cost>0&&n>0){var m=(price-cost)/price;wN+=m*n*price;wD+=n*price;}
+  }
+  var mg=p-c,pct=wD>0?Math.round((wN/wD)*100):0;
+  document.getElementById("ku").textContent   = u;
+  document.getElementById("kc").textContent   = fmt(c);
+  document.getElementById("kp").textContent   = fmt(p);
+  document.getElementById("km").textContent   = fmt(mg);
+  document.getElementById("kpct").textContent = pct+"%";
+}
+
+/* ════════════════════════════════
+   UPDATE ROW
+════════════════════════════════ */
+function updateRow(sku){
+  var v=inv[sku];if(!v)return;
+  var g=v.g||0,h=v.h||0,total=g+h,cost=v.cost||0,price=v.price||0;
+  var margin=cost>0?Math.round(((price-cost)/price)*100):null;
+  var mc=margin!==null&&margin>=35?"good":"mid";
+  var sc=total===0?"out":total<5?"low":"in";
+  var d=document.querySelector(".dot[data-sku='"+sku+"']");if(d)d.className="dot "+sc;
+  var t=document.getElementById("tot-"+sku);if(t){t.textContent=total;t.className="tot"+(total===0?" zero":"");}
+  var m=document.getElementById("mg-"+sku);if(m){m.textContent=margin!==null?margin+"%":"—";m.className="mg "+mc;}
+  var vc=document.getElementById("vc-"+sku);if(vc)vc.textContent="$"+clp(total*cost);
+  var vm=document.getElementById("mv-"+sku);if(vm)vm.textContent="$"+clp(total*(price-cost));
+}
+
+/* ════════════════════════════════
+   CELL CHANGE
+════════════════════════════════ */
+function onCell(sku,field,el){
+  var val=Math.max(0,parseInt(el.value,10)||0);
+  el.value=val;if(!inv[sku])return;
+  inv[sku][field]=val;
+  save(sku);updateRow(sku);renderKPIs();
+  el.classList.remove("saved");void el.offsetWidth;el.classList.add("saved");
+  toast("Guardado");
+}
+
+/* ════════════════════════════════
+   DELETE / ADD
+════════════════════════════════ */
+function deleteProduct(sku){
+  var name=(inv[sku]&&inv[sku].name)||sku;
+  if(!confirm("Eliminar \""+name+"\"?"))return;
+  fbDel(sku);delete inv[sku];lsSave();
+  renderTable();renderKPIs();toast("Eliminado");
+}
+
+function addProduct(){
+  var name  = document.getElementById("new-name").value.trim();
+  var sku   = document.getElementById("new-sku").value.trim().toUpperCase();
+  var brand = document.getElementById("new-brand").value.trim();
+  var g     = parseInt(document.getElementById("new-g").value)||0;
+  var h     = parseInt(document.getElementById("new-h").value)||0;
+  var cost  = parseInt(document.getElementById("new-cost").value)||0;
+  var price = parseInt(document.getElementById("new-price").value)||0;
+  if(!name||!sku){toast("Nombre y SKU son obligatorios");return;}
+  if(inv[sku]){toast("SKU ya existe");return;}
+  var data={name:name,brand:brand,g:g,h:h,cost:cost,price:price,base:false};
+  inv[sku]=data;save(sku);
+  renderTable();renderKPIs();toast("Producto agregado");
+}
+
+/* ════════════════════════════════
+   RENDER TABLE
+════════════════════════════════ */
+function renderTable(){
+  var html="",q=Q.toLowerCase();
+  var skus=[];
+  for(var i=0;i<BASE.length;i++){if(inv[BASE[i].sku])skus.push(BASE[i].sku);}
+  for(var sku in inv){if(!inv[sku].base)skus.push(sku);}
+
+  for(var si=0;si<skus.length;si++){
+    var sku=skus[si],v=inv[sku];if(!v)continue;
+    var name=v.name||"",brand=v.brand||"";
+    if(q&&name.toLowerCase().indexOf(q)<0&&brand.toLowerCase().indexOf(q)<0&&sku.toLowerCase().indexOf(q)<0)continue;
+    if(F==="geminis"&&(v.g||0)===0)continue;
+    if(F==="hamburgo"&&(v.h||0)===0)continue;
+    var g=v.g||0,h=v.h||0,total=g+h,cost=v.cost||0,price=v.price||0;
+    var margin=cost>0?Math.round(((price-cost)/price)*100):null;
+    var mc=margin!==null&&margin>=35?"good":"mid";
+    var sc=total===0?"out":total<5?"low":"in";
+
+    html+="<tr>";
+    html+="<td><div class='pname'><span class='dot "+sc+"' data-sku='"+sku+"'></span>"+esc(name)+"</div></td>";
+    html+="<td><div class='psku'>"+esc(sku)+"</div></td>";
+    html+="<td><span class='brand'>"+esc(brand.split(" ")[0])+"</span></td>";
+    html+="<td class='c'><input type='number' min='0' class='cel cel-stock c' value='"+g+"' data-sku='"+sku+"' data-f='g' onblur=\"onCell(this.dataset.sku,this.dataset.f,this)\" onkeydown=\"if(event.key==='Enter')this.blur()\"></td>";
+    html+="<td class='c'><input type='number' min='0' class='cel cel-stock c' value='"+h+"' data-sku='"+sku+"' data-f='h' onblur=\"onCell(this.dataset.sku,this.dataset.f,this)\" onkeydown=\"if(event.key==='Enter')this.blur()\"></td>";
+    html+="<td class='c'><span class='tot"+(total===0?" zero":"")+"' id='tot-"+sku+"'>"+total+"</span></td>";
+    html+="<td class='r'><input type='number' min='0' class='cel cel-cost r' value='"+cost+"' data-sku='"+sku+"' data-f='cost' onblur=\"onCell(this.dataset.sku,this.dataset.f,this)\" onkeydown=\"if(event.key==='Enter')this.blur()\"></td>";
+    html+="<td class='r'><input type='number' min='0' class='cel cel-price r' value='"+price+"' data-sku='"+sku+"' data-f='price' onblur=\"onCell(this.dataset.sku,this.dataset.f,this)\" onkeydown=\"if(event.key==='Enter')this.blur()\"></td>";
+    html+="<td class='r'><span class='mg "+mc+"' id='mg-"+sku+"'>"+(margin!==null?margin+"%":"—")+"</span></td>";
+    html+="<td class='r vc' id='vc-"+sku+"'>$"+clp(total*cost)+"</td>";
+    html+="<td class='r vm' id='mv-"+sku+"'>$"+clp(total*(price-cost))+"</td>";
+    html+="<td><button class='del-btn' data-sku='"+sku+"' onclick='deleteProduct(this.dataset.sku)'>&#x2715;</button></td>";
+    html+="</tr>";
+  }
+
+  html+="<tr class='add-row'>";
+  html+="<td><input type='text' id='new-name' class='cel cel-text' placeholder='Nombre del producto'></td>";
+  html+="<td><input type='text' id='new-sku'  class='cel cel-text' placeholder='SKU-5L'></td>";
+  html+="<td><input type='text' id='new-brand' class='cel cel-text' placeholder='Marca'></td>";
+  html+="<td class='c'><input type='number' id='new-g' class='cel cel-stock c' min='0' value='0'></td>";
+  html+="<td class='c'><input type='number' id='new-h' class='cel cel-stock c' min='0' value='0'></td>";
+  html+="<td class='c'><span style='color:var(--g300);font-size:0.8rem'>—</span></td>";
+  html+="<td class='r'><input type='number' id='new-cost'  class='cel cel-cost r'  min='0' placeholder='0'></td>";
+  html+="<td class='r'><input type='number' id='new-price' class='cel cel-price r' min='0' placeholder='0'></td>";
+  html+="<td></td><td></td><td></td>";
+  html+="<td><button class='add-btn' onclick='addProduct()'>Agregar</button></td>";
+  html+="</tr>";
+
+  document.getElementById("tbody").innerHTML=html;
+}
+
+/* ════════════════════════════════
+   FILTERS / SEARCH
+════════════════════════════════ */
+function setF(f,btn){
+  F=f;document.querySelectorAll(".tab").forEach(function(b){b.classList.remove("active");});
+  btn.classList.add("active");renderTable();
+}
+function setQ(v){Q=v;renderTable();}
+
+/* ════════════════════════════════
+   EXPORT CSV
+════════════════════════════════ */
+function exportCSV(){
+  var rows=[["SKU","Producto","Marca","Geminis 366","Hamburgo 1620","Total","Costo Unit","Precio Venta","Margen %","Valor a Costo","Margen si Vende Todo"]];
+  for(var sku in inv){
+    var v=inv[sku],t=(v.g||0)+(v.h||0);
+    var m=v.cost>0?Math.round(((v.price-v.cost)/v.price)*100):0;
+    rows.push([sku,v.name||"",v.brand||"",v.g||0,v.h||0,t,v.cost||0,v.price||0,m+"%",t*(v.cost||0),t*((v.price||0)-(v.cost||0))]);
+  }
+  var csv=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");
+  var a=document.createElement("a");
+  a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);
+  a.download="mundoliva-inventario-"+new Date().toISOString().slice(0,10)+".csv";
+  a.click();toast("CSV exportado");
+}
+
+/* ════════════════════════════════
+   RESET STOCKS
+════════════════════════════════ */
+function resetStocks(){
+  if(!confirm("Resetear stocks a cero? Precios y costos se mantienen."))return;
+  var batch = db.batch();
+  for(var sku in inv){
+    inv[sku].g=0; inv[sku].h=0;
+    batch.update(db.collection(COL).doc(sku), {g:0, h:0});
+  }
+  lsSave();
+  batch.commit()
+    .then(function(){ toast("Stocks reseteados"); })
+    .catch(function(e){ console.error("resetStocks:", e.code); toast("Error al resetear"); });
+  renderTable(); renderKPIs();
+}
+
+/* ════════════════════════════════
+   SYNC PILL / TOAST
+════════════════════════════════ */
+function setSyncPill(cls,txt){
+  var el=document.getElementById("sync-pill");
+  el.className="sync-pill "+cls;el.textContent=txt;
+}
+var _tt;
+function toast(msg){
+  var t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(_tt);_tt=setTimeout(function(){t.classList.remove("show");},1800);
+}
+</script>
+</body>
+</html>
