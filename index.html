@@ -215,7 +215,6 @@ footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22
       <span class="sync-pill saving" id="sync-pill">Conectando...</span>
       <button class="hbtn" id="sync-btn" onclick="syncWeb()">Sincronizar con la web</button>
       <button class="hbtn" onclick="exportCSV()">Exportar CSV</button>
-      <button class="hbtn" onclick="resetStocks()">Resetear Stocks</button>
       <button class="hbtn out" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -631,23 +630,6 @@ function exportCSV(){
   a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);
   a.download="mundoliva-inventario-"+new Date().toISOString().slice(0,10)+".csv";
   a.click();toast("CSV exportado");
-}
-
-/* ════════════════════════════════
-   RESET STOCKS
-════════════════════════════════ */
-function resetStocks(){
-  if(!confirm("Resetear stocks a cero? Precios y costos se mantienen."))return;
-  var batch = db.batch();
-  for(var sku in inv){
-    inv[sku].g=0; inv[sku].h=0;
-    batch.update(db.collection(COL).doc(sku), {g:0, h:0});
-  }
-  lsSave();
-  batch.commit()
-    .then(function(){ toast("Stocks reseteados"); })
-    .catch(function(e){ console.error("resetStocks:", e.code); toast("Error al resetear"); });
-  renderTable(); renderKPIs();
 }
 
 /* ════════════════════════════════
