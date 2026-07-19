@@ -163,12 +163,29 @@ td.r { text-align: right; } td.c { text-align: center; }
 #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--white); padding: 9px 20px; border-radius: 7px; font-size: 0.82rem; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 999; white-space: nowrap; border-left: 3px solid var(--brand); }
 #toast.show { opacity: 1; }
 
+/* ── MODAL SYNC WEB ── */
+#sync-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 900; align-items: center; justify-content: center; padding: 20px; }
+#sync-overlay.show { display: flex; }
+.sync-card { background: var(--white); border-radius: 12px; border-top: 4px solid var(--brand); box-shadow: 0 20px 60px rgba(0,0,0,0.4); width: 100%; max-width: 560px; max-height: 82vh; overflow-y: auto; padding: 28px 30px 24px; }
+.sync-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--ink); margin-bottom: 4px; }
+.sync-sub { font-size: 0.78rem; color: var(--g400); margin-bottom: 18px; }
+.sync-sec { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--g600); margin: 14px 0 6px; }
+.sync-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.84rem; padding: 5px 0; border-bottom: 1px solid var(--g100); }
+.sync-row:last-child { border-bottom: none; }
+.sync-chg { font-weight: 700; color: var(--ink); }
+.sync-chg .old { color: var(--g400); text-decoration: line-through; font-weight: 400; margin-right: 6px; }
+.sync-err { color: var(--red); font-size: 0.78rem; }
+.sync-warn { color: var(--amber); }
+.sync-close { margin-top: 18px; width: 100%; padding: 11px; background: var(--ink); color: var(--white); border: none; border-radius: 7px; font-size: 0.88rem; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; }
+.sync-close:hover { background: var(--g700); }
+
 footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22px; margin-top: 32px; border-top: 1px solid var(--g200); }
 @media (max-width: 960px) { .kpis { grid-template-columns: repeat(2,1fr); } main { padding: 16px; } }
 </style>
 </head>
 <body>
 <div id="toast"></div>
+<div id="sync-overlay"><div class="sync-card" id="sync-card"></div></div>
 
 <!-- ════ LOGIN ════ -->
 <div id="login-screen">
@@ -191,6 +208,7 @@ footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22
     <div class="header-right">
       <span class="user-pill" id="user-pill"></span>
       <span class="sync-pill saving" id="sync-pill">Conectando...</span>
+      <button class="hbtn" id="sync-btn" onclick="syncWeb()">Sincronizar con la web</button>
       <button class="hbtn" onclick="exportCSV()">Exportar CSV</button>
       <button class="hbtn" onclick="resetStocks()">Resetear Stocks</button>
       <button class="hbtn out" onclick="doLogout()">Salir</button>
@@ -625,6 +643,60 @@ function resetStocks(){
     .catch(function(e){ console.error("resetStocks:", e.code); toast("Error al resetear"); });
   renderTable(); renderKPIs();
 }
+
+/* ════════════════════════════════
+   SINCRONIZAR CON LA WEB
+   Empuja el stock del repo (bodega)
+   hacia la tienda Wix, vía función
+   Netlify. Solo stock, nunca precio.
+════════════════════════════════ */
+function syncWeb(){
+  if(!confirm("Enviar el stock de bodega a la tienda mundoliva.cl?\n\nLa web mostrara exactamente las cantidades de este inventario (Geminis + Hamburgo). No cambia precios."))return;
+  var btn=document.getElementById("sync-btn");
+  btn.disabled=true;btn.textContent="Sincronizando...";
+  fetch("/.netlify/functions/sync-wix",{method:"POST"})
+    .then(function(r){return r.json().then(function(j){return{status:r.status,data:j};});})
+    .then(function(res){showSyncResult(res.data);})
+    .catch(function(){
+      showSyncResult({error:"red",mensaje:"No se pudo conectar con el servicio de sincronizacion. Revisa tu conexion e intenta de nuevo."});
+    })
+    .finally(function(){btn.disabled=false;btn.textContent="Sincronizar con la web";});
+}
+
+function showSyncResult(d){
+  var h="";
+  if(d&&d.ok){
+    var na=(d.actualizados||[]).length,ns=(d.sinCambio||[]).length,
+        nf=(d.sinProductoWeb||[]).length,ne=(d.errores||[]).length;
+    h+="<div class='sync-title'>Sincronizacion "+(ne?"con avisos":"completada")+"</div>";
+    h+="<div class='sync-sub'>"+na+" actualizado"+(na===1?"":"s")+" &middot; "+ns+" ya estaba"+(ns===1?"":"n")+" al dia"+(nf?" &middot; "+nf+" sin producto en la web":"")+(ne?" &middot; "+ne+" con error":"")+"</div>";
+    if(na){
+      h+="<div class='sync-sec'>Actualizados en la web</div>";
+      d.actualizados.forEach(function(x){
+        h+="<div class='sync-row'><span>"+esc(x.name)+"</span><span class='sync-chg'><span class='old'>"+(x.antes==null?"?":x.antes)+"</span>"+x.ahora+"</span></div>";
+      });
+    }
+    if(nf){
+      h+="<div class='sync-sec sync-warn'>Sin producto en la web (SKU no encontrado)</div>";
+      d.sinProductoWeb.forEach(function(x){
+        h+="<div class='sync-row'><span>"+esc(x.name)+" <span style='color:var(--g400);font-family:monospace;font-size:0.7rem'>"+esc(x.sku)+"</span></span><span>"+x.stock+"</span></div>";
+      });
+    }
+    if(ne){
+      h+="<div class='sync-sec' style='color:var(--red)'>Errores</div>";
+      d.errores.forEach(function(x){
+        h+="<div class='sync-row'><span>"+esc(x.name||x.sku)+"</span><span class='sync-err'>"+esc(x.detalle)+"</span></div>";
+      });
+    }
+  }else{
+    h+="<div class='sync-title'>No se pudo sincronizar</div>";
+    h+="<div class='sync-sub'>"+esc((d&&d.mensaje)||"Error desconocido. Intenta de nuevo o avisa a Christian.")+"</div>";
+  }
+  h+="<button class='sync-close' onclick='closeSync()'>Entendido</button>";
+  document.getElementById("sync-card").innerHTML=h;
+  document.getElementById("sync-overlay").classList.add("show");
+}
+function closeSync(){document.getElementById("sync-overlay").classList.remove("show");}
 
 /* ════════════════════════════════
    SYNC PILL / TOAST

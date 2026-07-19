@@ -1,0 +1,8 @@
+# Configuración Netlify — inventario.mundoliva.cl
+# La función sync-wix vive en netlify/functions/ y necesita las
+# variables de entorno WIX_API_KEY y WIX_SITE_ID (se configuran en
+# el panel de Netlify → Site configuration → Environment variables).
+
+[build]
+  publish = "."
+  functions = "netlify/functions"
