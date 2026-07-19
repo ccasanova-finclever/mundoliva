@@ -100,8 +100,15 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 36px; }
 .kpis { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 26px; }
 .kpi { background: var(--white); border: 1px solid var(--g200); border-top: 3px solid var(--brand); border-radius: 8px; padding: 16px 18px; }
 .kpi-label { font-size: 0.67rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--g400); margin-bottom: 8px; }
-.kpi-val { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--ink); line-height: 1; }
+.kpi-val { font-family: 'Playfair Display', serif; font-size: 1.32rem; color: var(--ink); line-height: 1; white-space: nowrap; }
 .kpi-sub { font-size: 0.69rem; color: var(--g400); margin-top: 4px; }
+
+/* ── GESTION DE CAJA ── */
+.caja-head { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--ink); margin: 2px 0 10px; }
+.kpis.caja { grid-template-columns: repeat(4,1fr); }
+.kpi-edit { width: 100%; border: none; border-bottom: 1px dashed var(--g300); background: transparent; font-family: 'Playfair Display', serif; font-size: 1.32rem; color: var(--ink); line-height: 1.2; padding: 0 0 2px; }
+.kpi-edit:focus { outline: none; border-bottom: 1px solid var(--brand); }
+.kpi-edit::placeholder { color: var(--g300); }
 
 /* TOOLBAR */
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -181,7 +188,7 @@ td.r { text-align: right; } td.c { text-align: center; }
 
 footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22px; margin-top: 32px; border-top: 1px solid var(--g200); }
 @media (max-width: 960px) {
-  .kpis { grid-template-columns: repeat(2,1fr); }
+  .kpis, .kpis.caja { grid-template-columns: repeat(2,1fr); }
   main { padding: 16px; }
   header { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
   .header-right { flex-wrap: wrap; justify-content: flex-end; }
@@ -226,6 +233,32 @@ footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22
       <div class="kpi"><div class="kpi-label">Valor a Precio Venta</div><div class="kpi-val" id="kp">$0</div><div class="kpi-sub">si vendes todo</div></div>
       <div class="kpi"><div class="kpi-label">Margen Esperado</div><div class="kpi-val" id="km">$0</div><div class="kpi-sub">utilidad potencial</div></div>
       <div class="kpi"><div class="kpi-label">Margen Promedio</div><div class="kpi-val" id="kpct">0%</div><div class="kpi-sub">sobre precio de venta</div></div>
+    </div>
+
+    <div class="caja-head">Gestion de caja</div>
+    <div class="kpis caja">
+      <div class="kpi">
+        <div class="kpi-label">IVA Credito Fiscal Acumulado</div>
+        <input class="kpi-edit" id="iva-cf" inputmode="numeric" placeholder="$0"
+               onblur="onFin('ivaCF',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; remanente CF del F29</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">OPEX Mensual</div>
+        <input class="kpi-edit" id="opex" inputmode="numeric" placeholder="$0"
+               onblur="onFin('opex',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; bodegas, despachos y gastos del mes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Capital de Trabajo Ocupado</div>
+        <div class="kpi-val" id="kct">$0</div>
+        <div class="kpi-sub">inventario a costo + IVA CF</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Cobertura de OPEX</div>
+        <div class="kpi-val" id="kcob">&mdash;</div>
+        <div class="kpi-sub">meses de gastos que paga el margen si vendes todo</div>
+      </div>
     </div>
     <div class="toolbar">
       <div class="page-title">Inventario en formato de 5 litros</div>
@@ -291,6 +324,7 @@ function doLogin() {
 
 function doLogout() {
   stopListener();           // cancelar listener Firestore
+  if (typeof stopFinListener === "function") stopFinListener();
   inv = {};                 // limpiar datos en memoria
   sessionStorage.removeItem("ml_user");
   document.getElementById("app").style.display = "none";
@@ -363,6 +397,7 @@ function bootApp() {
   renderKPIs();
   setSyncPill("saving", "Conectando...");
   startListener();
+  startFinListener();
 }
 
 /* Cancelar listener al salir */
@@ -475,12 +510,8 @@ function fbDel(sku) {
    FORMAT
 ════════════════════════════════ */
 function clp(n){ return Math.round(n).toLocaleString("es-CL"); }
-function fmt(n){
-  n=Math.round(n);
-  if(n>=1000000) return "$"+(n/1000000).toFixed(1).replace(".",",")+"M";
-  if(n>=1000)    return "$"+Math.round(n/1000)+"K";
-  return "$"+clp(n);
-}
+/* Numeros SIEMPRE completos con separador de miles (sin K/M) */
+function fmt(n){ return "$"+clp(n); }
 function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
 /* ════════════════════════════════
@@ -499,6 +530,59 @@ function renderKPIs(){
   document.getElementById("kp").textContent   = fmt(p);
   document.getElementById("km").textContent   = fmt(mg);
   document.getElementById("kpct").textContent = pct+"%";
+  TOTALES.costo=c;TOTALES.margen=mg;
+  renderCaja();
+}
+
+/* ════════════════════════════════
+   GESTION DE CAJA
+   IVA CF y OPEX editables (doc
+   finanzas/caja en Firestore).
+   Capital de trabajo = inventario
+   a costo + IVA CF. Cobertura =
+   margen esperado / OPEX mensual.
+════════════════════════════════ */
+var TOTALES={costo:0,margen:0};
+var FIN={ivaCF:0,opex:0};
+var unsubFin=null;
+var FINDOC=db.collection("finanzas").doc("caja");
+
+function startFinListener(){
+  stopFinListener();
+  unsubFin=FINDOC.onSnapshot(function(doc){
+    var d=doc.exists?doc.data():{};
+    FIN.ivaCF=parseInt(d.ivaCF,10)||0;
+    FIN.opex=parseInt(d.opex,10)||0;
+    var a=document.getElementById("iva-cf"),b=document.getElementById("opex");
+    if(document.activeElement!==a)a.value=FIN.ivaCF?"$"+clp(FIN.ivaCF):"";
+    if(document.activeElement!==b)b.value=FIN.opex?"$"+clp(FIN.opex):"";
+    renderCaja();
+  },function(e){console.warn("finanzas listener:",e.code);});
+}
+function stopFinListener(){if(unsubFin){unsubFin();unsubFin=null;}}
+
+function onFin(campo,el){
+  var val=parseInt(String(el.value).replace(/[^0-9]/g,""),10)||0;
+  el.value=val?"$"+clp(val):"";
+  if(FIN[campo]===val)return;
+  FIN[campo]=val;
+  var d={};d[campo]=val;
+  FINDOC.set(d,{merge:true})
+    .then(function(){toast("Guardado");})
+    .catch(function(e){console.error("onFin:",e.code);toast("Error al guardar");});
+  renderCaja();
+}
+
+function renderCaja(){
+  var ct=TOTALES.costo+FIN.ivaCF;
+  document.getElementById("kct").textContent=fmt(ct);
+  var cob=document.getElementById("kcob");
+  if(FIN.opex>0){
+    var meses=TOTALES.margen/FIN.opex;
+    cob.textContent=(Math.round(meses*10)/10).toLocaleString("es-CL")+" meses";
+  }else{
+    cob.textContent="—";
+  }
 }
 
 /* ════════════════════════════════
