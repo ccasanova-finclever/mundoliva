@@ -180,7 +180,12 @@ td.r { text-align: right; } td.c { text-align: center; }
 .sync-close:hover { background: var(--g700); }
 
 footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22px; margin-top: 32px; border-top: 1px solid var(--g200); }
-@media (max-width: 960px) { .kpis { grid-template-columns: repeat(2,1fr); } main { padding: 16px; } }
+@media (max-width: 960px) {
+  .kpis { grid-template-columns: repeat(2,1fr); }
+  main { padding: 16px; }
+  header { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+  .header-right { flex-wrap: wrap; justify-content: flex-end; }
+}
 </style>
 </head>
 <body>
