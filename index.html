@@ -238,6 +238,30 @@ footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22
     <div class="caja-head">Gestion de caja</div>
     <div class="kpis caja">
       <div class="kpi">
+        <div class="kpi-label">Saldo Cuenta Corriente</div>
+        <input class="kpi-edit" id="fin-banco" inputmode="numeric" placeholder="$0"
+               onblur="onFin('banco',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; lo que hay en el banco hoy</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Cuentas por Cobrar</div>
+        <input class="kpi-edit" id="fin-cobrar" inputmode="numeric" placeholder="$0"
+               onblur="onFin('porCobrar',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; facturas de clientes pendientes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Deudas Proveedores</div>
+        <input class="kpi-edit" id="fin-prov" inputmode="numeric" placeholder="$0"
+               onblur="onFin('proveedores',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; mercaderia y gastos por pagar</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Deuda Financiera</div>
+        <input class="kpi-edit" id="fin-deuda" inputmode="numeric" placeholder="$0"
+               onblur="onFin('deudaFin',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; prestamos, lineas y tarjetas</div>
+      </div>
+      <div class="kpi">
         <div class="kpi-label">IVA Credito Fiscal Acumulado</div>
         <input class="kpi-edit" id="iva-cf" inputmode="numeric" placeholder="$0"
                onblur="onFin('ivaCF',this)" onkeydown="if(event.key==='Enter')this.blur()">
@@ -250,14 +274,30 @@ footer { text-align: center; color: var(--g400); font-size: 0.71rem; padding: 22
         <div class="kpi-sub">editable &middot; bodegas, despachos y gastos del mes</div>
       </div>
       <div class="kpi">
+        <div class="kpi-label">Aportes / Retiros del Mes</div>
+        <input class="kpi-edit" id="fin-aportes" inputmode="numeric" placeholder="$0"
+               onblur="onFin('aportes',this)" onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="kpi-sub">editable &middot; + aporte de socios, &minus; retiro (se limpia cada mes)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Posicion Neta de Caja</div>
+        <div class="kpi-val" id="kpos">$0</div>
+        <div class="kpi-sub">banco + por cobrar &minus; todas las deudas</div>
+      </div>
+      <div class="kpi">
         <div class="kpi-label">Capital de Trabajo Ocupado</div>
         <div class="kpi-val" id="kct">$0</div>
-        <div class="kpi-sub">inventario a costo + IVA CF</div>
+        <div class="kpi-sub">inventario + IVA CF + por cobrar &minus; proveedores</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">Cobertura de OPEX</div>
         <div class="kpi-val" id="kcob">&mdash;</div>
         <div class="kpi-sub">meses de gastos que paga el margen si vendes todo</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">FCF del Mes</div>
+        <div class="kpi-val" id="kfcf">&mdash;</div>
+        <div class="kpi-sub" id="kfcf-sub">flujo de caja libre generado este mes</div>
       </div>
     </div>
     <div class="toolbar">
@@ -416,6 +456,7 @@ function startListener() {
 
   unsub = db.collection(COL).onSnapshot(
     function(snap) {
+      invCargado = true;
       if (snap.empty) {
         // Primera vez: subir catalogo base
         seedFromBase();
@@ -536,46 +577,83 @@ function renderKPIs(){
 
 /* ════════════════════════════════
    GESTION DE CAJA
-   IVA CF y OPEX editables (doc
-   finanzas/caja en Firestore).
-   Capital de trabajo = inventario
-   a costo + IVA CF. Cobertura =
-   margen esperado / OPEX mensual.
+   Saldos editables en doc finanzas/caja.
+   Foto automatica mensual en coleccion
+   finanzas_historial (doc AAAA-MM) para
+   calcular el FCF contra el mes anterior.
+   FCF mes = variacion de la posicion
+   neta de caja − aportes/retiros socios.
 ════════════════════════════════ */
 var TOTALES={costo:0,margen:0};
-var FIN={ivaCF:0,opex:0};
+var FIN={banco:0,porCobrar:0,proveedores:0,deudaFin:0,ivaCF:0,opex:0,aportes:0};
+var CAMPOS_FIN={banco:"fin-banco",porCobrar:"fin-cobrar",proveedores:"fin-prov",deudaFin:"fin-deuda",ivaCF:"iva-cf",opex:"opex",aportes:"fin-aportes"};
 var unsubFin=null;
 var FINDOC=db.collection("finanzas").doc("caja");
+var HISTCOL=db.collection("finanzas_historial");
+var MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+var _hoy=new Date();
+var MES_ACTUAL=_hoy.getFullYear()+"-"+String(_hoy.getMonth()+1).padStart(2,"0");
+var _prev=new Date(_hoy.getFullYear(),_hoy.getMonth()-1,1);
+var MES_PREVIO=_prev.getFullYear()+"-"+String(_prev.getMonth()+1).padStart(2,"0");
+var NOMBRE_MES_PREVIO=MESES[_prev.getMonth()];
+var PREV=null,prevCargado=false,finCargado=false,invCargado=false,_ultimaFoto="";
+
+/* Monto con signo: "-$500.000" (guion ASCII para poder re-parsearlo) */
+function fmtSigno(n){n=Math.round(n);return(n<0?"-$":"$")+clp(Math.abs(n));}
 
 function startFinListener(){
   stopFinListener();
   unsubFin=FINDOC.onSnapshot(function(doc){
     var d=doc.exists?doc.data():{};
+    FIN.banco=parseInt(d.banco,10)||0;
+    FIN.porCobrar=parseInt(d.porCobrar,10)||0;
+    FIN.proveedores=parseInt(d.proveedores,10)||0;
+    FIN.deudaFin=parseInt(d.deudaFin,10)||0;
     FIN.ivaCF=parseInt(d.ivaCF,10)||0;
     FIN.opex=parseInt(d.opex,10)||0;
-    var a=document.getElementById("iva-cf"),b=document.getElementById("opex");
-    if(document.activeElement!==a)a.value=FIN.ivaCF?"$"+clp(FIN.ivaCF):"";
-    if(document.activeElement!==b)b.value=FIN.opex?"$"+clp(FIN.opex):"";
+    /* aportes son "del mes": si la ultima edicion fue en otro mes, parten en 0 */
+    FIN.aportes=(d.aportesMes===MES_ACTUAL)?(parseInt(d.aportes,10)||0):0;
+    for(var campo in CAMPOS_FIN){
+      var el=document.getElementById(CAMPOS_FIN[campo]);
+      if(el&&document.activeElement!==el)el.value=FIN[campo]?fmtSigno(FIN[campo]):"";
+    }
+    finCargado=true;
     renderCaja();
   },function(e){console.warn("finanzas listener:",e.code);});
+  if(!prevCargado){
+    HISTCOL.doc(MES_PREVIO).get().then(function(doc){
+      PREV=doc.exists?doc.data():null;prevCargado=true;renderCaja();
+    }).catch(function(e){console.warn("historial:",e.code);prevCargado=true;});
+  }
 }
 function stopFinListener(){if(unsubFin){unsubFin();unsubFin=null;}}
 
 function onFin(campo,el){
-  var val=parseInt(String(el.value).replace(/[^0-9]/g,""),10)||0;
-  el.value=val?"$"+clp(val):"";
+  var s=String(el.value).replace(/[^0-9-]/g,"");
+  var val=parseInt(s,10)||0;
+  if(campo!=="aportes"&&val<0)val=0; /* solo aportes admite negativo (retiro) */
+  el.value=val?fmtSigno(val):"";
   if(FIN[campo]===val)return;
   FIN[campo]=val;
   var d={};d[campo]=val;
+  if(campo==="aportes")d.aportesMes=MES_ACTUAL;
   FINDOC.set(d,{merge:true})
     .then(function(){toast("Guardado");})
     .catch(function(e){console.error("onFin:",e.code);toast("Error al guardar");});
   renderCaja();
 }
 
+function posicionNeta(){return FIN.banco+FIN.porCobrar-FIN.proveedores-FIN.deudaFin;}
+
 function renderCaja(){
-  var ct=TOTALES.costo+FIN.ivaCF;
-  document.getElementById("kct").textContent=fmt(ct);
+  var pos=posicionNeta();
+  var elPos=document.getElementById("kpos");
+  elPos.textContent=fmtSigno(pos);
+  elPos.style.color=pos<0?"var(--red)":"";
+
+  var ct=TOTALES.costo+FIN.ivaCF+FIN.porCobrar-FIN.proveedores;
+  document.getElementById("kct").textContent=fmtSigno(ct);
+
   var cob=document.getElementById("kcob");
   if(FIN.opex>0){
     var meses=TOTALES.margen/FIN.opex;
@@ -583,6 +661,37 @@ function renderCaja(){
   }else{
     cob.textContent="—";
   }
+
+  var elF=document.getElementById("kfcf"),elFs=document.getElementById("kfcf-sub");
+  if(PREV&&typeof PREV.posicion==="number"){
+    var fcf=pos-PREV.posicion-FIN.aportes;
+    elF.textContent=(fcf>0?"+":"")+fmtSigno(fcf);
+    elF.style.color=fcf<0?"var(--red)":"";
+    elFs.textContent="vs cierre de "+NOMBRE_MES_PREVIO+(FIN.aportes?" (descontados aportes/retiros)":"");
+  }else{
+    elF.textContent="—";
+    elF.style.color="";
+    elFs.textContent="se calcula desde el proximo mes (aun no hay foto anterior)";
+  }
+  guardarFotoMensual();
+}
+
+/* Foto automatica del mes en curso: cada cambio actualiza el doc
+   AAAA-MM; el ultimo estado del mes queda como su cierre oficial. */
+function guardarFotoMensual(){
+  if(!finCargado||!invCargado)return;
+  var foto={
+    banco:FIN.banco,porCobrar:FIN.porCobrar,proveedores:FIN.proveedores,
+    deudaFin:FIN.deudaFin,ivaCF:FIN.ivaCF,opex:FIN.opex,aportes:FIN.aportes,
+    inventarioCosto:TOTALES.costo,margenPotencial:TOTALES.margen,
+    posicion:posicionNeta(),
+    capitalTrabajo:TOTALES.costo+FIN.ivaCF+FIN.porCobrar-FIN.proveedores,
+    actualizado:new Date().toISOString()
+  };
+  var json=JSON.stringify(foto,Object.keys(foto).filter(function(k){return k!=="actualizado";}).sort());
+  if(json===_ultimaFoto)return;
+  _ultimaFoto=json;
+  HISTCOL.doc(MES_ACTUAL).set(foto).catch(function(e){console.warn("foto mensual:",e.code);});
 }
 
 /* ════════════════════════════════
